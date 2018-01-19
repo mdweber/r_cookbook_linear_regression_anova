@@ -1,8 +1,6 @@
 ---
 title: "R Cookbook - Chapter 11 - Linear Regression and ANOVA"
-output: 
-  html_notebook: 
-    theme: simplex
+output: html_notebook
 ---
 
 The lm function can perform linear regression. The main argument is a model formula, such as y ~ x. The formula has the response variable on the left of the tilde character (~) and the predictor variable on the right. The function estimates the regression coefficients, β0 and β1, and reports them as the intercept and the coefficient of x, respectively.
@@ -18,3 +16,189 @@ lm(mpg ~ hp, data=mtcars)
 ```
 Where the equation of the line is yi = 30.09886 - 0.06823xi + εi
 
+R uses the lm function for both simple and multiple linear regression. You simply add more variables to the righthand side of the model formula.
+
+```{r}
+lm(formula=mpg ~ hp + wt + disp, data=mtcars)
+```
+You want the critical statistics and information regarding your regression, such as R^2, the F statistic, confidence intervals for the coefficients, residuals, the ANOVA table, and so forth.
+
+```{r}
+m <- lm(mpg ~ hp + wt + disp, data=mtcars)
+m
+```
+
+ANOVA table
+```{r}
+anova(m)
+```
+
+Model coefficients
+```{r}
+coef(m)
+```
+
+Confidence intervals for the regression coefficients
+```{r}
+confint(m)
+```
+
+Residual sum of squares (for linear models the deviance equals the RSS, aka sum of squared errors of prediction).
+```{r}
+deviance(m)
+```
+
+Vector of orthogonal effects
+```{r}
+effects(m)
+```
+Vector of fitted y values
+```{r}
+fitted(m)
+```
+Model residuals
+```{r}
+residuals(m)
+```
+Manual Calculate Residuals
+```{r}
+my_coefs <- coef(m)
+my_preds <- mtcars$hp*my_coefs["hp"] + mtcars$wt*my_coefs["wt"] +
+  mtcars$disp*my_coefs["disp"] + my_coefs["(Intercept)"]
+my_resids <- mtcars$mpg - my_preds
+my_resids
+```
+
+Key statistics, such as R2, the F statistic, and the residual standard error (σ)
+```{r}
+summary(m)
+```
+**Residuals section**  
+Ideally, the residuals would have a normal distribution. These statistics help you identify possible deviations from normality. The OLS algorithm is guaranteed to produce residuals with a mean of zero. Hence the sign of the median indicates the skew’s direction, and the magnitude of the median indicates the extent. In this case the median is negative, which suggests some skew to the left.
+
+If the residuals have a nice, bell-shaped distribution, then the first quartile (1Q) and third quartile (3Q) should have about the same magnitude. In this example, the larger magnitude of 3Q versus 1Q (1.3730 versus 0.9472) indicates a slight skew to the right in our data, although the negative median makes the situation less clear-cut. The Min and Max residuals offer a quick way to detect extreme outliers in the data, since extreme outliers (in the response variable) produce large residuals.
+
+**Coefficients**  
+Statistically speaking, how likely is it that the true coefficient is zero? That is the purpose of the t statistics and the p-values, which in the summary are labeled (respectively) t value and Pr(>|t|).
+
+**Residual standard error**  
+This reports the standard error of the residuals (σ)—that is, the sample standard deviation of ε.
+
+**R2**  
+R^2 is a measure of the model’s quality. Bigger is better. Mathematically, it is the fraction of the variance of y that is explained by the regression model. The adjusted value accounts for the number of variables in your model and so is a more realistic assessment of its effectiveness.
+
+**F statistic**  
+The F statistic tells you whether the model is significant or insignificant. The model is significant if any of the coefficients are nonzero (i.e., if βi ≠ 0 for some i). It is insignificant if all coefficients are zero (β1 = β2 = … = βn = 0).
+
+Most people look at the R2 statistic first. *The statistician wisely starts with the F statistic*, for if the model is not significant then nothing else matters.
+
+Variance–covariance matrix of the main parameters
+```{r}
+vcov(m)
+```
+
+You want to improve your linear model by applying a power transformation to the response variable.  To illustrate the Box–Cox transformation, let’s create some artificial data using the equation y−1.5 = x + ε, where ε is an error term:
+```{r}
+x <- 10:100
+eps <- rnorm(length(x), sd=5)
+y <- (x + eps)^(-1/1.5)
+```
+
+Then we will (mistakenly) model the data using a simple linear regression.
+```{r}
+m1 <- lm(y ~ x)
+summary(m1)
+```
+```{r}
+plot(x,y, main='X Y Plot with Fitted')
+lines(fitted(m1), col="red")
+```
+
+```{r}
+plot(m1, which=1)
+```
+The plot has a parabolic shape.  A possible fix is a power transformation on y, so we run the Box–Cox procedure:
+```{r}
+library(MASS)
+bc <- boxcox(m1)
+```
+The boxcox function plots values of λ against the log-likelihood of the resulting model. We want to maximize that log-likelihood, so the function draws a line at the best value and also draws lines at the limits of its confidence interval.
+
+Oddly, the boxcox function does not return the best value of λ. Rather, it returns the (x, y) pairs displayed in the plot. It’s pretty easy to find the values of λ that yield the largest log-likelihood y. We use the which.max function:
+```{r}
+my_lambda <- bc$x[which.max(bc$y)]
+my_lambda
+```
+
+We can apply the power transform to y and then fit the revised model; this gives a much better R2.
+```{r}
+z <- y^my_lambda
+m2 <- lm(z ~ x)
+summary(m2)
+```
+```{r}
+plot(x,z, main='X z Plot with Fitted')
+lines(fitted(m2), col="red")
+```
+```{r}
+plot(m2, which=1)
+```
+
+You have performed a linear regression. Now you want to verify the model’s quality by running diagnostic checks.
+```{r}
+plot(m)
+```
+
+car Package (Companion to Applied Regression)
+```{r}
+library(car)
+outlierTest(m)
+```
+
+You want to identify the observations that are having the most influence on the regression model. This is useful for diagnosing possible problems with the data.
+```{r}
+m = lm(mpg ~ wt + hp + qsec, data=mtcars)
+summary(influence.measures(m))
+```
+
+In linear and nonlinear regression, it is assumed that the residuals are independent of (not correlated with) each other. If the independence assumption is violated, some model fitting results might not be reliable. You can check for this a couple ways:  
+1) Use a graph of residuals versus data order (1, 2, 3, 4, n) to visually inspect residuals for autocorrelation. A positive autocorrelation is identified by a clustering of residuals with the same sign. A negative autocorrelation is identified by fast changes in the signs of consecutive residuals.
+```{r}
+plot(residuals(m))
+abline(h=0)
+```
+
+2) Use the Durbin-Watson statistic to test for the presence of autocorrelation. 
+```{r}
+library(lmtest)
+dwtest(m, alternative="two.sided")
+```
+Conventionally, if p < 0.05 then the residuals are significantly correlated whereas p > 0.05 provides no evidence of correlation.
+
+_**ANOVA**_
+
+Your data is divided into groups, and the groups are normally distributed. You want to know if the groups have significantly different means. Use a factor to define the groups. Then apply the oneway.test function.
+
+*BSS (or treatment SS):*  Between (treatment) group SSE. Average of each treatment group minus grand mean.  
+*WSS:*  Withing group SSE.Observation minus group mean.  
+*TSS:*  Total. BSS+WSS (Hence, you only need to compute any two of three sources of variation to conduct an ANOVA).  
+
+Additional calculations based on the square errors gets you a test statistic and ciritcal value for a hypothesis test (based on an F distribution - The F a right-skewed distribution used most commonly in Analysis of Variance).
+
+```{r}
+head(iris)
+```
+
+```{r}
+oneway.test(Petal.Width ~ Species, data = iris)
+```
+The ANOVA test is important because it tells you whether or not the groups’ means are different. But the test does not identify which groups are different, and it does not report their differences.
+
+The anova function can compare two models and report if they are significantly different:
+```{r}
+y <- y^my_lambda
+m2 <- lm(y ~ x)
+anova(m1,m2)
+```
+
+Using a dichotomous independent variable, the ANOVA table in bivariate regression will have the same numbers and ANOVA results as a one-way ANOVA table would.
