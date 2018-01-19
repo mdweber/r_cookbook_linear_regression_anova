@@ -1,0 +1,20 @@
+---
+title: "R Cookbook - Chapter 11 - Linear Regression and ANOVA"
+output: 
+  html_notebook: 
+    theme: simplex
+---
+
+The lm function can perform linear regression. The main argument is a model formula, such as y ~ x. The formula has the response variable on the left of the tilde character (~) and the predictor variable on the right. The function estimates the regression coefficients, β0 and β1, and reports them as the intercept and the coefficient of x, respectively.
+
+```{r}
+head(mtcars)
+```
+```{r}
+lm(mtcars$mpg ~ mtcars$hp)
+```
+```{r}
+lm(mpg ~ hp, data=mtcars)
+```
+Where the equation of the line is yi = 30.09886 - 0.06823xi + εi
+
